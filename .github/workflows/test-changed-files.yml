@@ -1,0 +1,67 @@
+name: Run Changed Tests
+
+on: [ push ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper file detection
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -r requirements.txt
+          uv pip install --system pytest-picked pytest-xdist
+
+      - name: Detect changed files and run tests
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Running tests for files changed in PR"
+            git fetch origin ${{ github.base_ref }} --depth=1
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.py$' || true)
+          else
+            echo "Running tests for files changed in push"
+            git fetch origin main
+            CHANGED_FILES=$(git diff --name-only origin/main | grep -E '\.py$' || true)
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No Python files changed. Skipping tests."
+            exit 0
+          else
+            # Set up Python path to fix import issues
+            export PYTHONPATH=$PYTHONPATH:$(pwd)
+
+            # Create reports directory
+            mkdir -p reports
+
+            # Run pytest-picked to test changed files
+            python -m pytest --picked --mode=branch --parent-branch=origin/main \
+                            -v --html=reports/report.html --self-contained-html \
+                            -n 2 --dist loadgroup
+          fi
+        env:
+          API_BASE_URL: https://automation-qa-test.universeapps.limited
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload even if tests fail
+        with:
+          name: test-report
+          path: reports/report.html
