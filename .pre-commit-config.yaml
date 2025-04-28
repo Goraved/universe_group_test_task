@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [ --fix ]
+
+  - repo: local
+    hooks:
+      - id: framework-unit-tests
+        name: Run framework unit tests
+        entry: env API_TOKEN=eyJ_dummy_token pytest
+        language: system
+        pass_filenames: false
+        args: [
+          "-m unit",
+          "-v"
+        ]
+        always_run: true
+        verbose: true

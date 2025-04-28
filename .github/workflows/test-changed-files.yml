@@ -1,0 +1,61 @@
+name: Run Changed Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for proper file detection
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv pip install -r requirements.txt
+          uv pip install pytest-picked
+
+      - name: Detect changed files and run tests
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Running tests for files changed in PR"
+            git fetch origin ${{ github.base_ref }} --depth=1
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            echo "Running tests for files changed in push"
+            git fetch origin ${{ github.event.before }} --depth=1
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Set up Python path to fix import issues
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          
+          # Run pytest-picked to test changed files
+          python -m pytest --picked -v --html=reports/report.html --self-contained-html
+        env:
+          API_BASE_URL: https://automation-qa-test.universeapps.limited
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v3
+        if: always()  # Upload even if tests fail
+        with:
+          name: test-report
+          path: reports/report.html
