@@ -22,8 +22,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -r requirements.txt
-          uv pip install pytest-picked
+          uv pip install --system -r requirements.txt
+          uv pip install --system pytest-picked
 
       - name: Detect changed files and run tests
         run: |
@@ -36,16 +36,16 @@ jobs:
             git fetch origin ${{ github.event.before }} --depth=1
             CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           fi
-          
+
           echo "Changed files:"
           echo "$CHANGED_FILES"
-          
+
           # Set up Python path to fix import issues
           export PYTHONPATH=$PYTHONPATH:$(pwd)
-          
+
           # Create reports directory
           mkdir -p reports
-          
+
           # Run pytest-picked to test changed files
           python -m pytest --picked -v --html=reports/report.html --self-contained-html
         env:
